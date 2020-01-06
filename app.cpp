@@ -1,29 +1,45 @@
-#include <tins/tins.h>
-#include <iostream>
-#include <regex>
+#include "nazwa.h"
 using namespace Tins;
 
-bool match_ip(std::regex const &pattern, std::string const &ip_address){
-	std::smatch match;
-	if (std::regex_search(ip_address, match, pattern)){
-		return true;
-	}
-	std::cout << std::endl << "Wpisz poprawną wartość" << std::endl << std::endl;
-	return false;
+void clear_screen(){
+	#ifdef _WIN32
+	system("cls");
+	#else
+	system("clear");
+	#endif
 }
 
 int main(){
-	std::regex ip_pattern("\\d{1,3}(\\.\\d{1,3}){3}");
-	std::string ip_string;
-	do{
-		std::cout << "Podaj adres ip(v4): ";
-		std::cin >> ip_string;
-	} while (!match_ip(ip_pattern, ip_string));
-	std::string netmask_string;
-	do{
-		std::cout << std::endl << "Podaj maskę podsieci: ";
-		std::cin >> netmask_string;
-	} while (!match_ip(ip_pattern, netmask_string));
-
-
+	clear_screen();
+	int c = 1;
+	while (c != 0){
+		std::cout << "0. Wyjdź" << std::endl;
+		std::cout << "1. Oblicz adres sieci oraz rozgłoszeniowy." << std::endl;
+		std::cout << "2. Wyświetl aktywne urządzenia w sieci." << std::endl;
+		std::cout << "Podaj numer: ";
+		std::cin >> c;
+		switch (c){
+			case 0:{
+				break;
+			}
+			case 1:{
+				clear_screen();
+				std::pair<std::string, std::string> addresses = calc();
+				std::cout << std::endl << "Adres IP sieci: " << addresses.first;
+				std::cout << "Adres IP rozgłoszeniowy: " << addresses.second << std::endl << std::endl;
+				break;
+			}
+			case 2:{
+				clear_screen();
+				scan();
+				break;
+			}
+			default:{
+				clear_screen();
+				std::cout << "Nie ma takiego menu.";
+				break;
+			}
+		}
+	}
+	return 0;
 }
