@@ -1,4 +1,4 @@
-#include "nazwa.h"
+#include "utils.h"
 using namespace Tins;
 
 void clear_screen(){
@@ -11,6 +11,7 @@ void clear_screen(){
 
 int main(){
 	clear_screen();
+	std::cout << "Run as admin!!!" << std::endl << std::endl;
 	int c = 1;
 	while (c != 0){
 		std::cout << "0. Wyjdź" << std::endl;
