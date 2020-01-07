@@ -87,55 +87,74 @@ std::pair<std::string, std::string> calc(){
 	return std::make_pair(network_ip_string.str(), broadcast_ip_string.str());
 }
 
-void scan(){
+void subnet_scan(){
     NetworkInterface iface = NetworkInterface::default_interface();
 	NetworkInterface::Info iface_addresses = iface.addresses();
 	std::string netmask_string = std::to_string(iface_addresses.netmask);
 	IPv4Range scan_range = IPv4Address(iface_addresses.ip_addr) / netmask_to_prefix(netmask_string);
-	std::string p, trash;
-	#ifdef _WIN32
-	p = "ping -n 1";
-	#else
-	p = "ping -W 1 -c 1 ";
-	#endif
 	for (const auto &addr : scan_range){
-		std::stringstream ping_stream;
-		ping_stream << p << addr << " > null";
-		std::string ping_command_str = ping_stream.str();
-		char ping_command[ping_command_str.size()+1];
-		strcpy(ping_command,ping_command_str.c_str());
-		int status = system(ping_command);
-		std::cout << "";
-		if (status == 0){
+		if (addr == iface_addresses.ip_addr){
+			continue;
+		}
+		PacketSender sender;
+		EthernetII icmp_request = EthernetII("ff:ff:ff:ff:ff:ff",iface_addresses.hw_addr) / IP(addr,iface_addresses.ip_addr) / ICMP();
+		std::unique_ptr<PDU> response(sender.send_recv(icmp_request, iface));
+		if (response){
 			std::cout << "Adres " << addr << " aktywny, ";
 
-			IPv4Address target_ip(addr);
-			EthernetII arp_request = ARP::make_arp_request(target_ip, iface_addresses.ip_addr, iface_addresses.hw_addr);
-			PacketSender sender;
+			EthernetII arp_request = ARP::make_arp_request(addr, iface_addresses.ip_addr, iface_addresses.hw_addr);
 			std::unique_ptr<PDU> response(sender.send_recv(arp_request, iface));
 			if (response) {
 				const ARP &arp = response->rfind_pdu<ARP>();
 				std::cout << "MAC: " << arp.sender_hw_addr() << std::endl;
-				//https://api.macvendors.com/FC-A1-3E-2A-1C-33
 			}
-			else{
-				std::cout << std::endl;
-			}
+			std::cout << std::endl;
+		}
+	}
+}
 
-			int ports[13] = {21,22,23,25,53,80,139,443,445,993,3306,3389,5900};
-			std::cout << "Otwarte porty:" << std::endl;
-			for (int port_number=0;port_number<13;port_number++){
-				IP port_request = IP(addr) / TCP(ports[port_number],25566);
+
+void dns_resolver(){
+	std::string domain_name;
+	std::cout << "Podaj nazwę domenową: ";
+	std::cin >> domain_name;
+	std::cout << std::endl << Utils::resolve_domain(domain_name) << std::endl << std::endl;
+}
+
+void dev_scan(){
+	std::string addr;
+	std::regex ip_pattern("\\d{1,3}\\.\\d{1,3}.\\d{1,3}");
+	int ports[7] = {22,23,53,80,443,445,3389};
+	do{
+		std::cout << "Podaj adres ip: ";
+		std::cin >> addr;
+	} while (!match_reg(ip_pattern, addr));
+
+	NetworkInterface iface = NetworkInterface::default_interface();
+	NetworkInterface::Info iface_addresses = iface.addresses();
+	PacketSender sender;
+
+	EthernetII ping_req = EthernetII("ff:ff:ff:ff:ff:ff",iface_addresses.hw_addr) / IP(addr,iface_addresses.ip_addr) / ICMP();
+	std::unique_ptr<PDU> response(sender.send_recv(ping_req, iface));
+	if (response){
+		std::cout << std::endl << addr << ", otwarte porty:" << std::endl;
+		for (int port_number=0;port_number<7;port_number++){
+			IP port_request = IP(addr) / TCP(ports[port_number],25566);
+			try {
 				port_request.rfind_pdu<TCP>().set_flag(TCP::SYN, 1);
-				std::unique_ptr<PDU> response2(sender.send_recv(port_request));
-				if (response2){
-					TCP &tcp = response2->rfind_pdu<TCP>();
+				std::unique_ptr<PDU> response(sender.send_recv(port_request));
+				if (response){
+					TCP &tcp = response->rfind_pdu<TCP>();
 					if (!tcp.get_flag(TCP::RST)){
 						std::cout << "Port " << ports[port_number] << std::endl;
 					}
 				}
 			}
-			std::cout << std::endl;
+			catch (Tins::pdu_not_found) {
+				std::cout << "error" << ports[port_number] << std::endl;
+				continue;
+			}
 		}
 	}
+	std::cout << std::endl;
 }
